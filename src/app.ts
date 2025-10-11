@@ -2,6 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import http from "http";
+import router from "./routes";
 
 const app = express();
 
@@ -14,11 +15,31 @@ app.use(express.urlencoded({ extended: true }));
 // Set Security HTTP headers
 app.use(helmet());
 
+const allowedOrigins = [
+  "http://localhost:5173", // local dev
+  process.env.APP_URL, // deployed frontend (from .env)
+].filter(Boolean);
+
 // Enable CORS
-app.use(cors());
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like curl or Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`Blocked CORS request from origin: ${origin}`);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true, // enable if frontend sends cookies or auth headers
+  })
+);
 
 // Routes
-// app.use("/api");
+app.use("/api", router);
 
 // Liveness: process is up and can handle HTTP
 app.get("/healthz", (req, res) => {

@@ -1,0 +1,24 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches:
+      [master, dev]
+
+jobs:
+  pr-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository # needed for the git commands to run properly in the steps below
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Node
+        run: npm run build

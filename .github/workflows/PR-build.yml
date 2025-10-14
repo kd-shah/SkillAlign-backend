@@ -2,8 +2,7 @@ name: PR Check
 
 on:
   pull_request:
-    branches:
-      [master, dev]
+    branches: [main, dev]
 
 jobs:
   pr-check:

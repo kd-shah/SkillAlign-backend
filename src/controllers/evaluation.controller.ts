@@ -1,8 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Request, Response, NextFunction } from "express";
 import multer from "multer";
+import { v4 as uuidv4 } from "uuid";
+import { PrismaClient } from "@prisma/client";
 
 const upload = multer();
+
+const prisma = new PrismaClient();
 
 const evaluate = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -34,46 +38,44 @@ const evaluate = async (req: Request, res: Response, next: NextFunction) => {
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-            candidateName: { type: Type.STRING },
-            overallMatchPercentage: { type: Type.NUMBER },
-            summary: { type: Type.STRING },
+          candidateName: { type: Type.STRING },
+          overallMatchPercentage: { type: Type.NUMBER },
+          summary: { type: Type.STRING },
 
-            matchedSkills: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
+          matchedSkills: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          missingSkills: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          weakSkills: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          suggestedImprovements: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          recommendedAdditions: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          recommendedRemovals: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          resumeFeedback: {
+            type: Type.OBJECT,
+            properties: {
+              clarity: { type: Type.STRING },
+              structure: { type: Type.STRING },
+              formatting: { type: Type.STRING },
+              tone: { type: Type.STRING },
             },
-            missingSkills: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-            weakSkills: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-            suggestedImprovements: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-            recommendedAdditions: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-            recommendedRemovals: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
-            resumeFeedback: {
-              type: Type.OBJECT,
-              properties: {
-                clarity: { type: Type.STRING },
-                structure: { type: Type.STRING },
-                formatting: { type: Type.STRING },
-                tone: { type: Type.STRING },
-              },
-              propertyOrdering: ["clarity", "structure", "formatting", "tone"],
-            },
-          
-         
+            propertyOrdering: ["clarity", "structure", "formatting", "tone"],
+          },
         },
         required: ["overallMatchPercentage", "summary", "matchedSkills"],
         propertyOrdering: [
@@ -91,17 +93,50 @@ const evaluate = async (req: Request, res: Response, next: NextFunction) => {
       },
     };
 
-
-
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: contents,
       config: config,
     });
-    res.status(200).json({ message: response.text });
+
+    const sessionId = uuidv4();
+    const evaluationData = JSON.parse(response.text!);
+
+    // Save to database
+    await prisma.session.create({
+      data: {
+        fileName: file?.originalname,
+        jobDescription: jobDescription,
+        evaluation: response.text!,
+        sessionId: sessionId,
+      },
+    });
+
+    res.status(200).json({ sessionId: sessionId, evaluation: evaluationData });
   } catch (error) {
     next(error);
   }
 };
 
-export default { evaluate };
+const fetchEvaluation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { sessionId } = req.params;
+    const response = await prisma.session.findUnique({
+      where: { sessionId: sessionId },
+    });
+    const evaluation = JSON.parse(response?.evaluation || "{}");
+    res.status(200).json({
+      fileName: response?.fileName,
+      jobDescription: response?.jobDescription,
+      evaluation: evaluation,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export default { evaluate, fetchEvaluation };

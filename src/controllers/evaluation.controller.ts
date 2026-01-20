@@ -1,10 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Request, Response, NextFunction } from "express";
-import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import { PrismaClient } from "@prisma/client";
-
-const upload = multer();
 
 const prisma = new PrismaClient();
 
